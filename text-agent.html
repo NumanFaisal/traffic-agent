@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agent Debugger</title>
+<script src="https://www.google.com/search?q=https://cdn.tailwindcss.com"></script>
+<style>
+body { background-color: #0f172a; color: #f8fafc; }
+.card { background: #1e293b; border: 1px solid #334155; }
+.search-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+</style>
+</head>
+<body class="p-4 md:p-10">
+<div class="max-w-4xl mx-auto">
+<header class="mb-8 text-center">
+<h1 class="text-3xl font-bold text-blue-400">🚨 AI Traffic & News Agent</h1>
+<p class="text-slate-400 mt-2">Live Search & Vision Monitor</p>
+</header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="card p-6 rounded-xl shadow-xl">
+            <h2 class="text-xl font-semibold mb-4 border-b border-slate-700 pb-2 text-blue-300">User Input</h2>
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Message</label>
+                <textarea id="textInput" rows="3" class="w-full bg-slate-800 border border-slate-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ask a news question or routing..."></textarea>
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Image Analysis</label>
+                <input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 cursor-pointer">
+            </div>
+            <button id="sendBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all active:scale-95">Analyze Input</button>
+        </div>
+
+        <div class="card p-6 rounded-xl shadow-xl">
+            <h2 class="text-xl font-semibold mb-4 border-b border-slate-700 pb-2 text-green-300">Live Agent Process</h2>
+            <div id="statusBox" class="mb-4 p-3 bg-slate-900 rounded border border-slate-700 hidden">
+                <div class="flex items-center gap-2">
+                    <div class="h-2 w-2 rounded-full bg-blue-500 search-pulse"></div>
+                    <span id="statusText" class="text-xs font-mono text-blue-400">Ready...</span>
+                </div>
+            </div>
+            <div id="responseArea" class="bg-slate-900/50 rounded-lg p-4 min-h-[250px] border border-slate-800 text-slate-300 text-sm overflow-y-auto">
+                Awaiting input...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const sendBtn = document.getElementById('sendBtn');
+    const statusBox = document.getElementById('statusBox');
+    const statusText = document.getElementById('statusText');
+    const responseArea = document.getElementById('responseArea');
+    let base64Image = null;
+
+    document.getElementById('imageInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => base64Image = event.target.result;
+            reader.readAsDataURL(file);
+        }
+    });
+
+    sendBtn.addEventListener('click', async () => {
+        const text = document.getElementById('textInput').value;
+        statusBox.classList.remove('hidden');
+        responseArea.innerHTML = "";
+        
+        // Step 1: Frontend updates showing intention
+        statusText.innerText = base64Image ? "Analyzing visual data..." : "Preparing internet search query...";
+        
+        try {
+            const response = await fetch('http://localhost:3000/agent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, imageBase64: base64Image })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                statusText.innerText = data.response.status || "Task complete.";
+                statusText.classList.replace('text-blue-400', 'text-green-400');
+                // Handle markdown-style newlines
+                responseArea.innerHTML = data.response.content.replace(/\n/g, '<br>');
+            } else {
+                statusText.innerText = "Error encountered.";
+                statusText.classList.replace('text-blue-400', 'text-red-400');
+                responseArea.innerText = data.error;
+            }
+        } catch (err) {
+            statusText.innerText = "Server Unreachable.";
+            responseArea.innerText = "Ensure Node.js is running on port 3000.";
+        }
+    });
+</script>
+
+
+</body>
+</html>
