@@ -12,56 +12,54 @@ export async function getBestRoute(userInput, geminiKey, fileBuffer = null) {
   try {
     let contextFromImage = "";
 
-    // 1. If an image is provided, identify the current location first
+    // 1. Image Identification (if provided)
     if (fileBuffer) {
       const visionPrompt = `
-        Analyze this photo. Look for landmarks, street signs, or city features.
-        Identify the exact location (Street, City).
+        Analyze this photo. Identify the exact location (Street, City, Landmark).
         Return ONLY a JSON object: { "identified_location": "string" }
       `;
-
       const visionResult = await model.generateContent([
         visionPrompt,
         { inlineData: { data: fileBuffer.toString("base64"), mimeType: "image/jpeg" } }
       ]);
-
       const visionData = JSON.parse(visionResult.response.text().replace(/```json|```/g, "").trim());
       contextFromImage = visionData.identified_location;
     }
 
-    // 2. Extract Intent (Origin and Destination)
+    // 2. Extract Intent with "Precision Context"
+    // We force Gemini to append the City/State if it looks like a local landmark
     const extractPrompt = `
       User Text: "${userInput}"
       Image Context: "${contextFromImage}"
       
-      Task: Identify the 'from' (origin) and 'to' (destination) points.
-      If the text says 'go to [place]', use the Image Context as the 'from' point.
-      If both are in the text, ignore the image context.
+      Task: Identify 'from' and 'to'. 
+      IMPORTANT: If the locations are in Jamshedpur (like Bistupur, Mango, Sakchi, Telco, Adityapur), 
+      ensure you append ", Jamshedpur, Jharkhand" to the names for the map link.
       
-      Example: "Bistupur to Mango" -> { "from": "Bistupur, Jamshedpur", "to": "Mango, Jamshedpur" }
-      Return ONLY JSON.
+      Return ONLY JSON: { "from": "string", "to": "string" }
     `;
 
     const extraction = await model.generateContent(extractPrompt);
     const { from, to } = JSON.parse(extraction.response.text().replace(/```json|```/g, "").trim());
 
     if (!to) {
-      return `I've identified the location as ${from || contextFromImage}. Where would you like to go from here?`;
+      return `I've pinned your location at ${from || contextFromImage}. Where would you like to navigate to?`;
     }
 
-    // 3. Create a Google Maps Navigation Link (Direct & Alternative routes)
-    // The 'dir' endpoint automatically shows alternative routes if traffic is detected
-    const googleNavUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
+    // 3. Generate the "Smart" Navigation Link
+    // We use the 'dir' action with 'navigate' to trigger the full GPS UI with alternatives
+    // This URL format is the most reliable way to trigger Google Maps' native traffic-aware navigation
+    const googleNavUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving&dir_action=navigate`;
 
     return {
       summary: `Route from ${from} to ${to}`,
-      status: "✅ Route & Alternatives Generated",
-      details: `Identified starting point: ${from}`,
+      status: "🚀 Navigation Link Ready",
+      details: "This link will open Google Maps with live traffic and alternative routes.",
       link: googleNavUrl
     };
 
   } catch (err) {
     console.error("Routing Error:", err);
-    return "Could not calculate the route. Please provide clear location names or a clearer photo.";
+    return "I couldn't generate a precise route. Please try saying: 'Navigate from Bistupur to Mango'.";
   }
 }
